@@ -1,10 +1,9 @@
 import os
-import requests
 import logging
+import httpx
 from dotenv import load_dotenv
-from livekit.agents import function_tool  # ✅ Correct decorator
+from langchain.tools import tool
 from datetime import datetime
-from livekit import agents
 
 # Load environment variables
 load_dotenv()
@@ -13,54 +12,36 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-import os
-import requests
-import logging
-from livekit.agents import function_tool
-from langchain.tools import tool
-
-logger = logging.getLogger(__name__)
-
 @tool
 async def google_search(query: str) -> str:
     """
     Searches Google and returns the top 3 results with heading and summary only.
     No raw links are included to make speech output sound natural.
     """
-
     logger.info(f"Query प्राप्त हुई: {query}")
 
     api_key = os.getenv("GOOGLE_SEARCH_API_KEY")
     search_engine_id = os.getenv("SEARCH_ENGINE_ID")
 
     if not api_key or not search_engine_id:
-        missing = []
-        if not api_key:
-            missing.append("GOOGLE_SEARCH_API_KEY")
-        if not search_engine_id:
-            missing.append("SEARCH_ENGINE_ID")
+        missing = [v for v, k in {"GOOGLE_SEARCH_API_KEY": api_key, "SEARCH_ENGINE_ID": search_engine_id}.items() if not k]
         return f"Missing environment variables: {', '.join(missing)}"
 
     url = "https://www.googleapis.com/customsearch/v1"
-    params = {
-        "key": api_key,
-        "cx": search_engine_id,
-        "q": query,
-        "num": 3
-    }
+    params = {"key": api_key, "cx": search_engine_id, "q": query, "num": 3}
 
     try:
-        logger.info("Google Custom Search API को request भेजी जा रही है...")
-        response = requests.get(url, params=params, timeout=10)
-    except requests.exceptions.RequestException as e:
+        async with httpx.AsyncClient() as client:
+            logger.info("Google Custom Search API को request भेजी जा रही है...")
+            response = await client.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Google API error: {e.response.status_code} - {e.response.text}")
+        return f"Google Search API में error आया: {e.response.status_code}"
+    except httpx.RequestError as e:
         logger.error(f"Request failed: {e}")
         return f"Google Search API request failed: {e}"
-
-    if response.status_code != 200:
-        logger.error(f"Google API error: {response.status_code} - {response.text}")
-        return f"Google Search API में error आया: {response.status_code} - {response.text}"
-
-    data = response.json()
     results = data.get("items", [])
 
     if not results:

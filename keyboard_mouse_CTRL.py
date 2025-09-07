@@ -8,6 +8,7 @@ from typing import List
 from livekit.agents import function_tool
 from langchain.tools import tool
 import codecs
+import config
 
 # ---------------------
 # SafeController Class
@@ -37,7 +38,7 @@ class SafeController:
             f.write(f"{datetime.now()}: {action}\n")
 
     def activate(self, token=None):
-        if token != "my_secret_token":
+        if token != config.CONTROLLER_ACTIVATION_TOKEN:
             self.log("Activation attempt failed.")
             return
         self.active = True
@@ -167,7 +168,7 @@ controller = SafeController()
 
 async def with_temporary_activation(fn, *args, **kwargs):
     print(f"🔍 TEMP ACTIVATION: {fn.__name__} | args: {args}")
-    controller.activate("my_secret_token")
+    controller.activate(config.CONTROLLER_ACTIVATION_TOKEN)
     result = await fn(*args, **kwargs)
     await asyncio.sleep(2)
     controller.deactivate()
@@ -329,4 +330,3 @@ async def swipe_gesture_tool(direction: str):
 
 
     return await with_temporary_activation(controller.swipe_gesture, direction)
-

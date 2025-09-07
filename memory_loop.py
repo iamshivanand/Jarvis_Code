@@ -5,6 +5,7 @@ import time
 import logging
 from memory_store import ConversationMemory
 from pydantic import BaseModel
+import config
 
 # Configure logging
 logging.basicConfig(
@@ -35,7 +36,7 @@ class MemoryExtractor:
         """
         The main loop that checks for and saves new conversations.
         """
-        memory = ConversationMemory("Gaurav_22")
+        memory = ConversationMemory(config.USER_ID)
 
         while True:
             # Check for new messages every 1 second

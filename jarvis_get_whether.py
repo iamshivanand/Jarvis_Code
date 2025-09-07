@@ -1,27 +1,17 @@
 import os
-import requests
 import logging
+import httpx
 from dotenv import load_dotenv
-from livekit.agents import function_tool  # ✅ Correct decorator
 from langchain.tools import tool
+from utils import get_current_city
 
 load_dotenv()
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def get_current_city():
-    try:
-        response = requests.get("https://ipinfo.io", timeout=5)
-        data = response.json()
-        return data.get("city", "Unknown")
-    except Exception as e:
-        return "Unknown"
-
 @tool
 async def get_weather(city: str = "") -> str:
-
     """
     Gives current weather information for a given city.
 
@@ -33,9 +23,6 @@ async def get_weather(city: str = "") -> str:
     - "Weather बताओ Bangalore का"
     - "क्या बारिश होगी मुंबई में?"
     """
-
-
-    
     api_key = os.getenv("OPENWEATHER_API_KEY")
 
     if not api_key:
@@ -43,7 +30,7 @@ async def get_weather(city: str = "") -> str:
         return "Environment variables में OpenWeather API key नहीं मिली।"
 
     if not city:
-        city = get_current_city()
+        city = await get_current_city()
 
     logger.info(f"City के लिए weather fetch किया जा रहा है।: {city}")
     url = "https://api.openweathermap.org/data/2.5/weather"
@@ -54,12 +41,11 @@ async def get_weather(city: str = "") -> str:
     }
 
     try:
-        response = requests.get(url, params=params)
-        if response.status_code != 200:
-            logger.error(f"OpenWeather API में error आया।: {response.status_code} - {response.text}")
-            return f"Error: {city} के लिए weather fetch नहीं कर पाए। कृपया city name चेक करें।"
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, params=params)
+            response.raise_for_status()
+            data = response.json()
 
-        data = response.json()
         weather = data["weather"][0]["description"].title()
         temperature = data["main"]["temp"]
         humidity = data["main"]["humidity"]
